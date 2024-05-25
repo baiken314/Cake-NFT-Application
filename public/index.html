@@ -1,0 +1,36 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOTC Token</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="icon" href="strawberry_cake.png" type="image/png">
+</head>
+<body>
+    <form id="nft-form">
+        <div id="app">
+            <h1>BuilderOfTheCake Token - BOTC</h1>
+            <p class="copy" id="copy-contract" onclick="copyToClipboard('copy-contract')" data-copy-text="0xDe08D710D1F0D85bD2381Af1F8538EF5923C5Cec">
+                <b>📜 Copy contract address</b>
+            </p>            
+            <p>Claim a Cake NFT for 0.1 MATIC!</p>
+            <button type="submit" @click.prevent="submitForm">{{ state == "pending" ? "Pending... " : "🍰 Claim Now" }}</button>
+            <p v-if="transactionHash" class="copy" id="copy-transaction-hash" onclick="copyToClipboard('copy-transaction-hash')" :data-copy-text="transactionHash">
+                <b>🪙 Copy transaction hash</b>
+            </p>   
+            <div v-if="nftTemplates.length > 0">
+                <h2>Current cakes</h2>
+                <div class="card" v-for="template in nftTemplates" :key="template._id">
+                    <img :src="template.imageUri" alt="NFT Image">
+                    <p>{{ template.name }}</p>
+                    <p>Chance: {{ template.percentRarity }}</p>
+                </div>
+            </div>
+        </div>
+    </form>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="script.js"></script>
+</body>
+</html>
