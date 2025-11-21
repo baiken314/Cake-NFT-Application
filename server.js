@@ -6,8 +6,39 @@ const dotenv = require('dotenv').config();
 
 const { Web3 } = require('web3');
 const { abi, bytecode } = require("./BuilderOfTheCakeToken.json");
-const web3 = new Web3('https://polygon-rpc.com');
-const myContract = new web3.eth.Contract(abi, process.env.BOTC_CONTRACT_ADDRESS);
+
+const polygonWeb3 = new Web3('https://polygon-rpc.com');
+const bnbWeb3 = new Web3('https://bsc-dataseed.binance.org/');
+
+const fomo3dAbi = [
+  {
+    "constant": true,
+    "inputs": [{"name": "account", "type": "address"}],
+    "name": "balanceOf",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{"name": "", "type": "uint8"}],
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {"name": "recipient", "type": "address"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "name": "transfer",
+    "outputs": [{"name": "", "type": "bool"}],
+    "type": "function"
+  }
+];
+
+const botcContract = new polygonWeb3.eth.Contract(abi, process.env.BOTC_CONTRACT_ADDRESS);
+const fomo3dContract = new bnbWeb3.eth.Contract(fomo3dAbi, process.env.FOMO3D_CONTRACT_ADDRESS);
 
 const app = express();
 
@@ -37,7 +68,7 @@ app.get('/nft', async (req, res) => {
 app.post('/claim', async (req, res) => {
     console.log("POST /claim", req.body);
 
-    if (!req.body.address || !web3.utils.toChecksumAddress(req.body.address)) {
+    if (!req.body.address || !polygonWeb3.utils.toChecksumAddress(req.body.address)) {
         res.json({
             success: false,
             message: "No valid address provided."
@@ -76,15 +107,34 @@ app.post('/claim', async (req, res) => {
         recipient = newRecipient;
     }
 
-    const maticAmount = 10;
+    let paymentRequest = {};
+
+    if (req.body.walletNetwork == "polygon") {
+        const maticAmount = 10;
     
-    const paymentRequest = {
-        from: req.body.address,
-        to: "0xf0eAc723A3d38Aec7fDB86092EB5cC3c61E62B07",
-        value: "0x" + parseInt(web3.utils.toWei(maticAmount.toString(), 'ether')).toString(16),
-        gas: "0x" + parseInt(web3.utils.toWei("100000", 'wei')).toString(16),
-        reason: '0x0'
-    };
+        paymentRequest = {
+            from: req.body.address,
+            to: process.env.RECEIVING_ADDRESS,
+            value: "0x" + parseInt(polygonWeb3.utils.toWei(maticAmount.toString(), 'ether')).toString(16),
+            gas: "0x" + parseInt(polygonWeb3.utils.toWei("100000", 'wei')).toString(16),
+            reason: '0x0'
+        };
+    } else if (req.body.walletNetwork == "bnbSmartChain") {
+        const fomo3dAmount = 10n;
+        const decimals = BigInt(await fomo3dContract.methods.decimals().call());
+        const amountRaw = fomo3dAmount * (10n ** decimals);
+
+        paymentRequest = {
+            from: req.body.address,
+            to: process.env.FOMO3D_CONTRACT_ADDRESS,
+            data: fomo3dContract.methods
+                .transfer(process.env.RECEIVING_ADDRESS, amountRaw.toString())
+                .encodeABI(),
+            value: "0x0",
+            gas: "0x186A0"
+        };
+    }
+
 
     res.json({
         success: true,
@@ -94,10 +144,11 @@ app.post('/claim', async (req, res) => {
 
 app.post('/verify-transaction', async (req, res) => {
     const transactionHash = req.body.transactionHash;
+    const walletNetwork = req.body.walletNetwork;
 
     // Wait for the transaction confirmation
     try {
-        const transactionReceipt = await getTransactionReceiptMined(transactionHash);
+        const transactionReceipt = await getTransactionReceiptMined(transactionHash, walletNetwork);
         console.log('Transaction confirmed:', transactionReceipt);
 
         let randomNftTemplate = await getRandomWeightedNftTemplate();
@@ -136,11 +187,17 @@ app.post('/verify-transaction', async (req, res) => {
     }
 });
 
-async function getTransactionReceiptMined(txHash, interval = 1000) {
+async function getTransactionReceiptMined(txHash, walletNetwork, interval = 1000) {
     while (true) {
         try {
             console.log("Awaiting mined recipt.");
-            const receipt = await web3.eth.getTransactionReceipt(txHash);
+            let receipt = undefined;
+            
+            if (walletNetwork == "polygon") {
+                receipt = await polygonWeb3.eth.getTransactionReceipt(txHash);
+            } else if (walletNetwork == "bnbSmartChain") {
+                receipt = await bnbWeb3.eth.getTransactionReceipt(txHash);
+            }
 
             if (receipt) {
                 return receipt;
@@ -179,7 +236,7 @@ async function getOwners() {
 
     for (const tokenId of tokenIds) {
         try {
-            const owner = await myContract.methods.ownerOf(tokenId).call();
+            const owner = await botcContract.methods.ownerOf(tokenId).call();
             console.log(`Token ID: ${tokenId}, Owner: ${owner}`);
         } catch (error) {
             console.error(`Error getting owner of token ${tokenId}.`);
@@ -189,24 +246,24 @@ async function getOwners() {
 
 async function safeMint(to, tokenId, uri) {
     const privateKey = process.env.PRIVATE_KEY;
-    const account = web3.eth.accounts.privateKeyToAccount(privateKey);
+    const account = polygonWeb3.eth.accounts.privateKeyToAccount(privateKey);
   
-    const gasPrice = await web3.eth.getGasPrice();
-    const nonce = await web3.eth.getTransactionCount(account.address);
+    const gasPrice = await polygonWeb3.eth.getGasPrice();
+    const nonce = await polygonWeb3.eth.getTransactionCount(account.address);
   
     const rawTransaction = {
         nonce: nonce,
-        gasPrice: web3.utils.toHex(gasPrice),
-        gasLimit: web3.utils.toHex(300000), 
-        to: myContract.options.address,
+        gasPrice: polygonWeb3.utils.toHex(gasPrice),
+        gasLimit: polygonWeb3.utils.toHex(300000), 
+        to: botcContract.options.address,
         value: "0x0",
-        data: myContract.methods.safeMint(to, tokenId, uri).encodeABI(),
+        data: botcContract.methods.safeMint(to, tokenId, uri).encodeABI(),
     };
   
-    const signedTransaction = await web3.eth.accounts.signTransaction(rawTransaction, privateKey);
+    const signedTransaction = await polygonWeb3.eth.accounts.signTransaction(rawTransaction, privateKey);
     
     try {
-        const result = await web3.eth.sendSignedTransaction(signedTransaction.rawTransaction);
+        const result = await polygonWeb3.eth.sendSignedTransaction(signedTransaction.rawTransaction);
         console.log(`Token ID ${tokenId} minted successfully. Transaction hash: ${result.transactionHash}`);
         return `${result.transactionHash}`;
     } catch (error) {

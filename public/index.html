@@ -15,7 +15,16 @@
             <p class="copy" id="copy-contract" onclick="copyToClipboard('copy-contract')" data-copy-text="0xDe08D710D1F0D85bD2381Af1F8538EF5923C5Cec">
                 <b>📜 Copy contract address</b>
             </p>            
-            <p>Claim a Cake NFT for 10 MATIC!</p>
+            <p>Claim a Cake NFT for 10 {{ currency }}!</p>
+
+            <div class="payment-options">
+                <input type="radio" name="currency" value="POLYGON" v-model="currency" />
+                <label for="polygon">10 Polygon (MATIC)</label>
+                <br>
+                <input type="radio" name="currency" value="FOMO3D" v-model="currency" />
+                <label for="fomo3d">10 FOMO3D</label>
+            </div>
+
             <button type="submit" @click.prevent="submitForm">{{ state == "pending" ? "Pending... " : "🍰 Claim Now" }}</button>
             <p v-if="transactionHash" class="copy" id="copy-transaction-hash" onclick="copyToClipboard('copy-transaction-hash')" :data-copy-text="transactionHash">
                 <b>🪙 Copy transaction hash</b>

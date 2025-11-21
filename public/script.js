@@ -1,10 +1,9 @@
 let walletAddress;
-let walletIsPolygon;
 
-// public/script.js
 const app = new Vue({
     el: '#app',
     data: {
+        currency: "POLYGON",
         nftTemplates: [],
         transactionHash: "",
         state: "initial"
@@ -21,7 +20,6 @@ const app = new Vue({
                     this.nftTemplates = data.nftTemplates;
 
                     // calculate percent rarity of NFTs
-
                     const totalWeight = this.nftTemplates.reduce((acc, template) => acc + template.weight, 0);
 
                     this.nftTemplates.forEach(template => {
@@ -75,85 +73,16 @@ function connectWallet() {
     }
 }
 
-async function checkWalletNetwork() {
+async function getWalletNetwork() {
     try {
         const chainId = await ethereum.request({ method: 'eth_chainId' });
-        const isPolygon = chainId === '0x89' || chainId === '137'; // Mainnet or Matic
-        walletIsPolygon = isPolygon;
+        console.log('Chain id is:', chainId);
 
-        if (isPolygon) {
-            console.log('Connected to Polygon (Matic) network');
-        } else {
-            console.log('Connected to a different network');
-        }
+        if (['0x89', '137'].includes(chainId)) return 'polygon';
+        if (['0x38', '56'].includes(chainId)) return 'bnbSmartChain';
+        return chainId;
     } catch (error) {
         console.error('Error getting chain ID:', error);
-    }
-}
-
-
-async function requestMATIC() {
-    const response = await fetch('/claim', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            address: walletAddress
-        }),
-    });
-
-    const result = await response.json();
-    console.log(result);
-
-    if (result.success) {
-        const paymentRequest = result.paymentRequest;
-        console.log('Payment Request:', paymentRequest);
-
-        try {
-            if (window.ethereum) {
-                const response = await window.ethereum.request({
-                    method: 'eth_sendTransaction',
-                    params: [paymentRequest],
-                });
-                
-                console.log('Transaction response:', response);
-
-                const verifyTransaction = async (transactionHash) => {
-                    try {
-                        const response = await fetch('/verify-transaction', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                transactionHash: transactionHash,
-                                address: walletAddress
-                            }),
-                        });
-                
-                        const result = await response.json();
-                        console.log(result);
-                
-                        if (result.success) {
-                            console.log('Transaction verified successfully');
-                        } else {
-                            console.error('Error verifying transaction:', result.message);
-                        }
-                    } catch (error) {
-                        console.error('Error verifying transaction:', error);
-                    }
-                };
-
-                verifyTransaction(response);
-            } else {
-                console.error('Ethereum provider not found. Please make sure MetaMask or another wallet is connected.');
-            }
-        } catch (error) {
-            console.error('Error sending transaction:', error);
-        }
-    } else {
-        console.error('Error requesting MATIC:', result.message);
     }
 }
 
@@ -161,15 +90,23 @@ async function submitForm(event) {
     event.preventDefault();
 
     if (!walletAddress) {
-        alert("No wallet connected. Cannot claim NFT.");
+        alert("Please connect your WEB3 wallet first.");
         connectWallet();
         return;
     }
+    if (!window.ethereum) {
+        alert("Please install MetaMask extension.");
+        return;
+    }
 
-    await checkWalletNetwork();
+    let walletNetwork = await getWalletNetwork();
 
-    if (!walletIsPolygon) {
-        alert("Wallet is connected on wrong network. Use the Polygon network.");
+    if (app.currency == 'POLYGON' && walletNetwork != 'polygon') {
+        alert("Please connect your wallet to the Polygon network.");
+        return;
+    }
+    if (app.currency == 'FOMO3D' && walletNetwork != 'bnbSmartChain') {
+        alert("Please connect your wallet to the BNB Smart Chain.");
         return;
     }
 
@@ -178,66 +115,67 @@ async function submitForm(event) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ address: walletAddress }),
+        body: JSON.stringify({ 
+            address: walletAddress,
+            walletNetwork: walletNetwork
+        }),
     })
     .then(response => response.json())
     .then(async result => {
-        if (result.success) {
-            const paymentRequest = result.paymentRequest;
-            console.log('Payment Request:', paymentRequest);
-
-            try {
-                if (window.ethereum) {
-                    const response = await window.ethereum.request({
-                        method: 'eth_sendTransaction',
-                        params: [paymentRequest],
-                    });
-                    
-                    console.log('Transaction response:', response);
-
-                    const verifyTransaction = async (transactionHash) => {
-                        try {
-                            const response = await fetch('/verify-transaction', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    transactionHash: transactionHash,
-                                    address: walletAddress
-                                }),
-                            });
-                    
-                            const result = await response.json();
-                            console.log(result);
-                    
-                            if (result.success) {
-                                console.log('Transaction verified successfully');
-                                app.transactionHash = result.transactionHash;
-                            } else {
-                                console.error('Error verifying transaction:', result.message);
-                            }
-                        } catch (error) {
-                            console.error('Error verifying transaction:', error);
-                        }
-                    };
-
-                    app.state = "pending";
-
-                    await verifyTransaction(response);
-
-                    app.state = "initial";
-
-                    alert("NFT claimed successfully!");
-                } else {
-                    console.error('Ethereum provider not found. Please make sure MetaMask or another wallet is connected.');
-                }
-            } catch (error) {
-                console.error('Error sending transaction:', error);
-            }
-        } else {
-            console.error('Error requesting MATIC:', result.message);
+        if (!result.success) {
+            console.error('Error requesting payment:', result.message);
             alert(result.message);
+            return;
+        }
+
+        const paymentRequest = result.paymentRequest;
+        console.log('Payment Request:', paymentRequest);
+
+        try {
+            const response = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [paymentRequest],
+            });
+            
+            console.log('Transaction response:', response);
+
+            const verifyTransaction = async (transactionHash) => {
+                try {
+                    const response = await fetch('/verify-transaction', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            transactionHash: transactionHash,
+                            address: walletAddress,
+                            walletNetwork: walletNetwork
+                        }),
+                    });
+            
+                    const result = await response.json();
+                    console.log(result);
+            
+                    if (result.success) {
+                        console.log('Transaction verified successfully');
+                        app.transactionHash = result.transactionHash;
+                    } else {
+                        console.error('Error verifying transaction:', result.message);
+                    }
+                } catch (error) {
+                    console.error('Error verifying transaction:', error);
+                }
+            };
+
+            app.state = "pending";
+
+            await verifyTransaction(response);
+
+            app.state = "initial";
+
+            alert("NFT claimed successfully!");
+        } catch (error) {
+            console.error('Error sending transaction:', error);
         }
     })
     .catch(error => {
