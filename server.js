@@ -20,7 +20,6 @@ mongoose.connect(process.env.MONGO_URI);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json());
 
-// Define a route to handle requests to the root URL
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -35,7 +34,6 @@ app.get('/nft', async (req, res) => {
     res.json({ success: true, nfts: nfts });
 });
 
-// Define a POST route to handle claims
 app.post('/claim', async (req, res) => {
     console.log("POST /claim", req.body);
 
@@ -80,7 +78,6 @@ app.post('/claim', async (req, res) => {
 
     const maticAmount = 10;
     
-    // Constructing a payment request
     const paymentRequest = {
         from: req.body.address,
         to: "0xf0eAc723A3d38Aec7fDB86092EB5cC3c61E62B07",
@@ -89,14 +86,12 @@ app.post('/claim', async (req, res) => {
         reason: '0x0'
     };
 
-    // Return the payment request to the frontend
     res.json({
         success: true,
         paymentRequest,
     });
 });
 
-// Add this route to handle transaction verification
 app.post('/verify-transaction', async (req, res) => {
     const transactionHash = req.body.transactionHash;
 
@@ -137,7 +132,6 @@ app.post('/verify-transaction', async (req, res) => {
         });
     } catch (error) {
         console.error('Error verifying transaction:', error);
-        // Respond to the client with an error message
         res.json({ success: false, message: 'Error verifying transaction' });
     }
 });
@@ -155,24 +149,17 @@ async function getTransactionReceiptMined(txHash, interval = 1000) {
             // Ignore the error and retry
         }
 
-        // Wait for the specified interval before retrying
         await new Promise(resolve => setTimeout(resolve, interval));
     }
 }
 
 async function getRandomWeightedNftTemplate() {
     try {
-        // Fetch all NftTemplates from the database
         const nftTemplates = await NftTemplate.find();
-
-        // Calculate the total weight
         const totalWeight = nftTemplates.reduce((acc, template) => acc + template.weight, 0);
-
-        // Generate a random number between 0 and the total weight
         const randomNumber = Math.random() * totalWeight;
-
-        // Iterate over the NftTemplates and find the one that corresponds to the random number
         let cumulativeWeight = 0;
+
         for (const template of nftTemplates) {
             cumulativeWeight += template.weight;
             if (randomNumber <= cumulativeWeight) {
@@ -180,7 +167,6 @@ async function getRandomWeightedNftTemplate() {
             }
         }
 
-        // This should not happen, but return null as a fallback
         return null;
     } catch (error) {
         console.error('Error fetching NftTemplates:', error);
@@ -189,7 +175,7 @@ async function getRandomWeightedNftTemplate() {
 }
 
 async function getOwners() {
-    const tokenIds = Array.from({ length: 6 }, (_, i) => i); // Generates an array [0, 1, 2, ..., 10]
+    const tokenIds = Array.from({ length: 6 }, (_, i) => i);
 
     for (const tokenId of tokenIds) {
         try {
@@ -207,13 +193,11 @@ async function safeMint(to, tokenId, uri) {
   
     const gasPrice = await web3.eth.getGasPrice();
     const nonce = await web3.eth.getTransactionCount(account.address);
-
-    const valueInMATIC = 0.01; // Amount in MATIC
   
     const rawTransaction = {
         nonce: nonce,
         gasPrice: web3.utils.toHex(gasPrice),
-        gasLimit: web3.utils.toHex(300000), // Adjust the gas limit as needed
+        gasLimit: web3.utils.toHex(300000), 
         to: myContract.options.address,
         value: "0x0",
         data: myContract.methods.safeMint(to, tokenId, uri).encodeABI(),
@@ -230,7 +214,6 @@ async function safeMint(to, tokenId, uri) {
     }
 }
 
-// Start the server
 app.listen(process.env.PORT, () => {
     console.log(`Server is running on http://localhost:${process.env.PORT}`);
 });
